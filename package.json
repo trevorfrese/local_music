@@ -1,0 +1,22 @@
+{
+  "name": "local_music",
+  "version": "1.0.0",
+  "description": "Discover artists playing at local venues",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trevorfrese/local_music.git"
+  },
+  "author": "Trevor Frese & Kevin Malta",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/trevorfrese/local_music/issues"
+  },
+  "homepage": "https://github.com/trevorfrese/local_music#readme",
+  "dependencies": {
+    "express": "^4.16.2"
+  }
+}
