@@ -20,7 +20,6 @@ function generateRandomString(length) {
 };
 
 function requestLib(options) {
-  console.log(options);
   return new Promise((resolve, reject) => {
     request(options, (err, res, body) => {
       if (!err || res.statusCode === 200) resolve([res, body]);
@@ -73,6 +72,19 @@ async function checkProfile(accessToken) {
   });
 }
 
+async function getTopTracks(accessToken, artistId) {
+  const [, body] = await requestLib({
+    method: 'GET',
+    url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?${querystring.stringify({
+      country: 'US'
+    })}`,
+    headers: { 'Authorization': 'Bearer ' + accessToken },
+    json: true
+  });
+  // TODO sort by popularity for tracks to get top tracks. 100 being most popular
+  console.log(util.inspect(body, false, null));
+}
+
 async function searchArtist(query, accessToken) {
   const [, body] = await requestLib({
     method: 'GET',
@@ -101,6 +113,7 @@ router.get('/callback', async (req, res) => {
 
     await checkProfile(accessToken);
     await searchArtist('Frank ocean', accessToken);
+    await getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
 
     res.sendStatus(200);
   } catch (err) {
