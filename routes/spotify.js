@@ -71,8 +71,6 @@ async function checkProfile(accessToken) {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     json: true
   });
-
-  // console.log(body);
 }
 
 async function searchArtist(query, accessToken) {
@@ -91,10 +89,6 @@ async function searchArtist(query, accessToken) {
 
 router.get('/callback', async (req, res) => {
   try {
-    // your application requests refresh and access tokens
-    // after checking the state parameter
-
-    console.log('ever here');
     var code = req.query.code || null;
     var state = req.query.state || null;
 
