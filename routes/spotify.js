@@ -8,6 +8,7 @@ const router = express.Router();
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
+const SONGKICK_API_KEY = process.env.SONGKICK_API_KEY;
 
 function generateRandomString(length) {
   let text = '';
@@ -122,5 +123,29 @@ router.get('/callback', async (req, res) => {
   }
 });
 
+(async() => {
+  try {
+    const BAY_AREA_METRO_ID = 26330;
+    console.log(SONGKICK_API_KEY);
+    // const [resp, body] = await requestLib({
+    //   method: 'GET',
+    //   url: `http://api.songkick.com/api/3.0/search/locations.json?${querystring.stringify({
+    //     apikey: SONGKICK_API_KEY,
+    //     query: 'San Francisco'
+    //   })}`,
+    //   json: true
+    // })
+    const [resp, body] = await requestLib({
+      method: 'GET',
+      url: `http://api.songkick.com/api/3.0/metro_areas/${BAY_AREA_METRO_ID}/calendar.json?${querystring.stringify({
+        apikey: SONGKICK_API_KEY
+      })}`,
+      json: true
+    })
+    console.log(util.inspect(body, false, null));
+  } catch (err) {
+    console.log(err);
+  }
+})()
 
 module.exports = router;
