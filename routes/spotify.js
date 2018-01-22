@@ -99,6 +99,10 @@ async function searchArtist(query, accessToken) {
   console.log(util.inspect(body, false, null));
 }
 
+<<<<<<< HEAD
+=======
+asdgasdgas;
+>>>>>>> 53cad7e17fe91be3e24418728ffdc3e2f0ec1ac1
 router.get('/callback', async (req, res) => {
   try {
     var code = req.query.code || null;
