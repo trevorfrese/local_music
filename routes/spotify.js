@@ -1,10 +1,9 @@
 const express = require('express');
 const querystring = require('querystring');
 const request = require('request');
-const util = require('util')
+const util = require('util');
 
 const router = express.Router();
-
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
@@ -99,7 +98,6 @@ async function searchArtist(query, accessToken) {
   console.log(util.inspect(body, false, null));
 }
 
-asdgasdgas;
 router.get('/callback', async (req, res) => {
   try {
     var code = req.query.code || null;
@@ -116,7 +114,6 @@ router.get('/callback', async (req, res) => {
     await searchArtist('Frank ocean', accessToken);
     await getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
 
-
     res.sendStatus(200);
   } catch (err) {
     console.log(err);
@@ -124,26 +121,61 @@ router.get('/callback', async (req, res) => {
   }
 });
 
+function getSongkickCalendar(metroAreaId) {
+
+   return requestLib({
+    method: 'GET',
+    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
+      apikey: SONGKICK_API_KEY,
+
+    })}`,
+    json: true
+  });
+}
+
+function getCalendarPage(metroAreaId, pageNumber) {
+  return requestLib({
+   method: 'GET',
+   url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
+     apikey: SONGKICK_API_KEY,
+     page: pageNumber
+   })}`,
+   json: true
+ });
+}
+
+function parseArtistsFromCalendar(calendar) {
+  const results = calendar.resultsPage.results.event;
+  console.log(results);
+  for (const result of results) {
+    console.log(result.displayName);
+  }
+}
+
+async function getPageTotal(metroAreaId) {
+  const [, body] = requestLib({
+   method: 'GET',
+   url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
+     apikey: SONGKICK_API_KEY,
+     page: pageNumber
+   })}`,
+   json: true
+ });
+
+ return parseInt(body.resultsPage.totalEntries / body.resultsPage.perPage);
+}
+
+async function getLocalArtists(metroAreaId) {
+  const [, calendar] = await getSongkickCalendar(metroAreaId);
+  const artists = parseArtistsFromCalendar(calendar);
+  return artists;
+}
+
 (async() => {
   try {
     const BAY_AREA_METRO_ID = 26330;
-    console.log(SONGKICK_API_KEY);
-    // const [resp, body] = await requestLib({
-    //   method: 'GET',
-    //   url: `http://api.songkick.com/api/3.0/search/locations.json?${querystring.stringify({
-    //     apikey: SONGKICK_API_KEY,
-    //     query: 'San Francisco'
-    //   })}`,
-    //   json: true
-    // })
-    const [resp, body] = await requestLib({
-      method: 'GET',
-      url: `http://api.songkick.com/api/3.0/metro_areas/${BAY_AREA_METRO_ID}/calendar.json?${querystring.stringify({
-        apikey: SONGKICK_API_KEY
-      })}`,
-      json: true
-    })
-    console.log(util.inspect(body, false, null));
+    // const[, body] = await getSongkickCalendar(BAY_AREA_METRO_ID);
+    await getLocalArtists(26330);
   } catch (err) {
     console.log(err);
   }
