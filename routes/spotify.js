@@ -1,10 +1,9 @@
 const express = require('express');
 const querystring = require('querystring');
 const request = require('request');
-const util = require('util')
+const util = require('util');
 
 const router = express.Router();
-
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
@@ -99,10 +98,6 @@ async function searchArtist(query, accessToken) {
   console.log(util.inspect(body, false, null));
 }
 
-<<<<<<< HEAD
-=======
-asdgasdgas;
->>>>>>> 53cad7e17fe91be3e24418728ffdc3e2f0ec1ac1
 router.get('/callback', async (req, res) => {
   try {
     var code = req.query.code || null;
@@ -118,7 +113,6 @@ router.get('/callback', async (req, res) => {
     await checkProfile(accessToken);
     await searchArtist('Frank ocean', accessToken);
     await getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
-
 
     res.sendStatus(200);
   } catch (err) {
