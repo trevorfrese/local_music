@@ -99,7 +99,7 @@ async function searchArtist(query, accessToken) {
   console.log(util.inspect(body, false, null));
 }
 
-
+asdgasdgas;
 router.get('/callback', async (req, res) => {
   try {
     var code = req.query.code || null;
@@ -115,6 +115,7 @@ router.get('/callback', async (req, res) => {
     await checkProfile(accessToken);
     await searchArtist('Frank ocean', accessToken);
     await getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
+
 
     res.sendStatus(200);
   } catch (err) {
