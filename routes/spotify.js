@@ -34,7 +34,7 @@ router.get('/register', async (req, res) => {
     const state = generateRandomString(16);
 
     console.log('register');
-    const scope = 'user-read-private user-read-email';
+    const scope = 'user-read-private user-read-email playlist-modify-private';
     res.redirect('https://accounts.spotify.com/authorize?' +
       querystring.stringify({
         response_type: 'code',
@@ -70,9 +70,10 @@ async function checkProfile(accessToken) {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     json: true
   });
+  return body.id;
 }
 
-async function getTopTracks(accessToken, artistId) {
+async function getTopTracks(accessToken, artistId, numTop) {
   const [, body] = await requestLib({
     method: 'GET',
     url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?${querystring.stringify({
@@ -81,8 +82,7 @@ async function getTopTracks(accessToken, artistId) {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     json: true
   });
-  // TODO sort by popularity for tracks to get top tracks. 100 being most popular
-  console.log(util.inspect(body, false, null));
+  return body.tracks.slice(0,numTop).map(track => [track.uri, track.popularity])
 }
 
 async function searchArtist(query, accessToken) {
@@ -95,7 +95,101 @@ async function searchArtist(query, accessToken) {
     headers: { 'Authorization': 'Bearer ' + accessToken },
     json: true
   });
-  console.log(util.inspect(body, false, null));
+  return body.artists.items[0].id;
+}
+
+async function createPlaylist(userId, accessToken) {
+  const[, body] = await requestLib({
+    method: 'POST',
+    url: `https://api.spotify.com/v1/users/${userId}/playlists`,
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type': 'application/json'
+    },
+    form: JSON.stringify({
+      name: "Discover Local Weekly",
+      public: false,
+      collaborative: false,
+      description: "This is a playlist for local music coming near you in two weeks time."
+    }),
+    json: true
+  });
+  return body.id;
+}
+
+async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
+  const n = trackURIs.length;
+  let start = 0;
+  let end = Math.min(100, n);
+  while ( start < n ) {
+    const [, body] = await requestLib({
+      method: 'POST',
+      url: `https://api.spotify.com/v1/users/${userId}/playlists/${playlistId}/tracks`,
+      headers: {
+        'Authorization': 'Bearer ' + accessToken,
+        'Content-Type': 'application/json'
+      },
+      json: true,
+      form: JSON.stringify({uris: trackURIs.slice(start, end)}),
+    });
+    console.log(body);
+    start = end;
+    end = Math.min(end + 100, n);
+  }
+}
+
+async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
+  const [, body] = await requestLib({
+    method: 'PUT',
+    url: `https://api.spotify.com/v1/users/${userId}/playlists/${playlistId}/tracks`,
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type': 'application/json'
+    },
+    json: true,
+    form: JSON.stringify({uris: []}),
+  });
+  console.log(body);
+}
+
+async function safeSearchArtist(artist, accessToken) {
+  try {
+    return await searchArtist(artist, accessToken);
+  } catch (err) {
+    return undefined;
+  }
+}
+
+async function safeGetTopTracks(accessToken, artistId, numTop) {
+  try {
+    const topURIs = await getTopTracks(accessToken, artistId, numTop);
+    return topURIs;
+  } catch (err) {
+    console.log(err);
+    return undefined;
+  }
+}
+
+function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
+  try {
+    addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
+  } catch (err) {
+      console.log(err);
+  }
+}
+
+async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
+  let tracks = [];
+  for (let artist of artists) {
+    const artistId = await safeSearchArtist(artist, accessToken);
+    console.log("Artist ID:", artistId);
+    if (artistId != undefined) {
+      tracks = tracks.concat(await safeGetTopTracks(accessToken, artistId, 3));
+    }
+  }
+  const sortedTracks = tracks.sort(function (a,b) {return b[1] - a[1]});
+  const trackURIs = sortedTracks.map(track => track[0])
+  safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
 }
 
 router.get('/callback', async (req, res) => {
@@ -109,6 +203,7 @@ router.get('/callback', async (req, res) => {
     const refreshToken = body.refresh_token;
 
     console.log('got token', accessToken, refreshToken);
+    console.log('BODY: ', body);
 
     await checkProfile(accessToken);
     await searchArtist('Frank ocean', accessToken);
@@ -123,24 +218,12 @@ router.get('/callback', async (req, res) => {
 
 (async() => {
   try {
-    const BAY_AREA_METRO_ID = 26330;
-    console.log(SONGKICK_API_KEY);
-    // const [resp, body] = await requestLib({
-    //   method: 'GET',
-    //   url: `http://api.songkick.com/api/3.0/search/locations.json?${querystring.stringify({
-    //     apikey: SONGKICK_API_KEY,
-    //     query: 'San Francisco'
-    //   })}`,
-    //   json: true
-    // })
-    const [resp, body] = await requestLib({
-      method: 'GET',
-      url: `http://api.songkick.com/api/3.0/metro_areas/${BAY_AREA_METRO_ID}/calendar.json?${querystring.stringify({
-        apikey: SONGKICK_API_KEY
-      })}`,
-      json: true
-    })
-    console.log(util.inspect(body, false, null));
+    const accessToken = "BQAnYHaAHzRXFVKdStcnzzUmig5LHxRwPCAvSqzjmfsFpszoTByCyUOCXaZDQYSLyR7VT9N_dT6YWOqZk7uyoYC6nP818J8KSFicjZyJuxe87y_urQjeCSbTz3awc6S8DNWvoEIV0iogNFYz7eBk4-39Cg2MXH0TJzgjLxS62ap0fxdekB6OVYwOHzAOJhw"
+    const userId = await checkProfile(accessToken);
+    const playlistId = await createPlaylist(userId, accessToken);
+    var artists = ["Frank ocean", "Wolfpeck", "John Mayer"];
+    console.log(playlistId);
+    await addLocalPlaylist(artists, userId, playlistId, accessToken);
   } catch (err) {
     console.log(err);
   }
