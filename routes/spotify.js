@@ -1,7 +1,7 @@
 const express = require('express');
 const querystring = require('querystring');
-const request = require('request');
 const util = require('util');
+const request = require('../utils/request.js').requestLib;
 
 const router = express.Router();
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -18,16 +18,6 @@ function generateRandomString(length) {
   }
   return text;
 };
-
-function requestLib(options) {
-  return new Promise((resolve, reject) => {
-    request(options, (err, res, body) => {
-      if (!err || res.statusCode === 200) resolve([res, body]);
-      else reject(err);
-    })
-  });
-}
-
 
 router.get('/register', async (req, res) => {
   try {
@@ -49,7 +39,7 @@ router.get('/register', async (req, res) => {
 });
 
 async function authenticate(code) {
-  return requestLib({
+  return request({
     method: 'POST',
     url: 'https://accounts.spotify.com/api/token',
     form: {
@@ -65,7 +55,7 @@ async function authenticate(code) {
 }
 
 async function checkProfile(accessToken) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
     url: 'https://api.spotify.com/v1/me',
     headers: { 'Authorization': 'Bearer ' + accessToken },
     json: true
@@ -73,7 +63,7 @@ async function checkProfile(accessToken) {
 }
 
 async function getTopTracks(accessToken, artistId) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
     method: 'GET',
     url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?${querystring.stringify({
       country: 'US'
@@ -86,7 +76,7 @@ async function getTopTracks(accessToken, artistId) {
 }
 
 async function searchArtist(query, accessToken) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
     method: 'GET',
     url: `https://api.spotify.com/v1/search?${querystring.stringify({
       q: query,
@@ -122,7 +112,7 @@ router.get('/callback', async (req, res) => {
 });
 
 async function getCalendarPage(metroAreaId, pageNumber) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
    method: 'GET',
    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
      apikey: SONGKICK_API_KEY,
@@ -158,7 +148,7 @@ function parseArtistsFromCalendar(calendar) {
 }
 
 async function getPageTotal(metroAreaId) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
    method: 'GET',
    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
      apikey: SONGKICK_API_KEY
