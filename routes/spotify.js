@@ -101,7 +101,7 @@ async function searchArtist(query, accessToken) {
 router.get('/callback', async (req, res) => {
   try {
     var code = req.query.code || null;
-    var state = req.query.state || null;
+  var state = req.query.state || null;
 
     const [, body] = await authenticate(code);
 
@@ -121,20 +121,8 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-function getSongkickCalendar(metroAreaId) {
-
-   return requestLib({
-    method: 'GET',
-    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-      apikey: SONGKICK_API_KEY,
-
-    })}`,
-    json: true
-  });
-}
-
-function getCalendarPage(metroAreaId, pageNumber) {
-  return requestLib({
+async function getCalendarPage(metroAreaId, pageNumber) {
+  const [, body] = await requestLib({
    method: 'GET',
    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
      apikey: SONGKICK_API_KEY,
@@ -142,40 +130,65 @@ function getCalendarPage(metroAreaId, pageNumber) {
    })}`,
    json: true
  });
+ return body;
+}
+
+async function getSongkickCalendar(metroAreaId, pageTotal) {
+  let calendar = [];
+  // TO MAKE IT RUN FAST SET pageTotal = 1
+  for (let i = 1; i < pageTotal + 1; i += 1) {
+    console.log('on page ', i);
+    const result = (await getCalendarPage(metroAreaId, i)).resultsPage;
+    const page =  result && result.results && result.results.event;
+    calendar = calendar.concat(page);
+  }
+
+  return calendar;
 }
 
 function parseArtistsFromCalendar(calendar) {
-  const results = calendar.resultsPage.results.event;
-  console.log(results);
-  for (const result of results) {
-    console.log(result.displayName);
+  const artists = [];
+  for (const event of calendar) {
+    event.performance = event.performance.filter((e) => { return e.billing === 'headline'});
+    for (const performance of event.performance) {
+      artists.push(performance.displayName);
+    }
   }
+  return artists;
 }
 
 async function getPageTotal(metroAreaId) {
-  const [, body] = requestLib({
+  const [, body] = await requestLib({
    method: 'GET',
    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-     apikey: SONGKICK_API_KEY,
-     page: pageNumber
+     apikey: SONGKICK_API_KEY
    })}`,
    json: true
  });
 
- return parseInt(body.resultsPage.totalEntries / body.resultsPage.perPage);
+ return parseInt(body.resultsPage.totalEntries / body.resultsPage.perPage, 10);
 }
 
 async function getLocalArtists(metroAreaId) {
-  const [, calendar] = await getSongkickCalendar(metroAreaId);
+  const pageTotal = await getPageTotal(metroAreaId);
+  console.log('page total', pageTotal);
+  const calendar = await getSongkickCalendar(metroAreaId, pageTotal);
   const artists = parseArtistsFromCalendar(calendar);
   return artists;
 }
 
-(async() => {
+async function getBayAreaArtists() {
   try {
     const BAY_AREA_METRO_ID = 26330;
-    // const[, body] = await getSongkickCalendar(BAY_AREA_METRO_ID);
-    await getLocalArtists(26330);
+    const artists = await getLocalArtists(BAY_AREA_METRO_ID);
+    console.log(artists);
+  } catch (err) {
+    console.log(err);
+  }
+}
+(async() => {
+  try {
+    getBayAreaArtists();
   } catch (err) {
     console.log(err);
   }
