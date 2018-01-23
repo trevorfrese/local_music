@@ -18,8 +18,10 @@
   },
   "homepage": "https://github.com/trevorfrese/local_music#readme",
   "dependencies": {
+    "@sendgrid/mail": "6.2.1",
     "dotenv": "4.0.0",
     "express": "^4.16.2",
+    "moment": "2.20.1",
     "querystring": "0.2.0",
     "request": "2.83.0"
   },
