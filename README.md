@@ -6,6 +6,7 @@
 2. Run `npm start` 
 3. Go to your browser and hit http://localhost:3000/spotify/register
 4. At this point this will call all the relevant endpoints in `spotify.js`
+5. In Atom install the packages `js-hyperclick` and `linter-eslint` and depedencies.
 
 So first you'll give access to the spotify app. Once the access is given you'll see a lot of stuff show up in the terminal. It should have the `access_token`, which you can use for any of your requests to Spotify's API.
 
