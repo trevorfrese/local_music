@@ -15,11 +15,11 @@ function generateRandomString(length) {
   let text = '';
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-  for (var i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
-};
+}
 
 router.get('/register', async (req, res) => {
   try {
@@ -27,14 +27,13 @@ router.get('/register', async (req, res) => {
 
     console.log('register');
     const scope = 'user-read-private user-read-email';
-    res.redirect('https://accounts.spotify.com/authorize?' +
-      querystring.stringify({
-        response_type: 'code',
-        client_id: process.env.SPOTIFY_CLIENT_ID,
-        scope: scope,
-        redirect_uri: REDIRECT_URI,
-        state: state
-      }));
+    res.redirect(`https://accounts.spotify.com/authorize?${querystring.stringify({
+      response_type: 'code',
+      client_id: process.env.SPOTIFY_CLIENT_ID,
+      scope,
+      redirect_uri: REDIRECT_URI,
+      state,
+    })}`);
   } catch (err) {
     console.log(err);
   }
@@ -45,14 +44,14 @@ async function authenticate(code) {
     method: 'POST',
     url: 'https://accounts.spotify.com/api/token',
     form: {
-      code: code,
+      code,
       grant_type: 'authorization_code',
-      redirect_uri: REDIRECT_URI
+      redirect_uri: REDIRECT_URI,
     },
     headers: {
       'Authorization': 'Basic ' + (new Buffer(CLIENT_ID + ':' + CLIENT_ID_SECRET).toString('base64'))
     },
-    json: true
+    json: true,
   });
 }
 
@@ -60,8 +59,10 @@ async function checkProfile(accessToken) {
   const [, body] = await request({
     url: 'https://api.spotify.com/v1/me',
     headers: { 'Authorization': 'Bearer ' + accessToken },
-    json: true
+    json: true,
   });
+
+  return  body;
 }
 
 async function getTopTracks(accessToken, artistId) {
@@ -92,8 +93,7 @@ async function searchArtist(query, accessToken) {
 
 router.get('/callback', async (req, res) => {
   try {
-    var code = req.query.code || null;
-  var state = req.query.state || null;
+    const code = req.query.code || null;
 
     const [, body] = await authenticate(code);
 

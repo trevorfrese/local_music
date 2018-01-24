@@ -5,14 +5,14 @@ const request = require('../utils/request').requestLib;
 
 async function getCalendarPage(metroAreaId, pageNumber) {
   const [, body] = await request({
-   method: 'GET',
-   url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-     apikey: SONGKICK_API_KEY,
-     page: pageNumber
-   })}`,
-   json: true
- });
- return body;
+    method: 'GET',
+    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
+      apikey: SONGKICK_API_KEY,
+      page: pageNumber,
+    })}`,
+    json: true,
+  });
+  return body;
 }
 
 async function getSongkickCalendar(metroAreaId, pageTotal) {
@@ -21,7 +21,7 @@ async function getSongkickCalendar(metroAreaId, pageTotal) {
   for (let i = 1; i < pageTotal + 1; i += 1) {
     console.log('on page ', i);
     const result = (await getCalendarPage(metroAreaId, i)).resultsPage;
-    const page =  result && result.results && result.results.event;
+    const page = result && result.results && result.results.event;
     calendar = calendar.concat(page);
   }
 
@@ -41,14 +41,14 @@ function parseArtistsFromCalendar(calendar) {
 
 async function getPageTotal(metroAreaId) {
   const [, body] = await request({
-   method: 'GET',
-   url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-     apikey: SONGKICK_API_KEY
-   })}`,
-   json: true
- });
+    method: 'GET',
+    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
+      apikey: SONGKICK_API_KEY,
+    })}`,
+    json: true,
+  });
 
- return parseInt(body.resultsPage.totalEntries / body.resultsPage.perPage, 10);
+  return parseInt(body.resultsPage.totalEntries / body.resultsPage.perPage, 10);
 }
 
 async function getLocalArtists(metroAreaId) {
@@ -69,10 +69,10 @@ async function getBayAreaArtists() {
   }
 }
 
-(async() => {
+(async () => {
   try {
     getBayAreaArtists();
   } catch (err) {
     console.log(err);
   }
-})()
+})();
