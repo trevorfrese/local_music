@@ -1,33 +1,26 @@
 const express = require('express');
 const querystring = require('querystring');
-const request = require('request');
 const util = require('util');
+
+const request = require('../utils/request').requestLib;
+const songkick = require('../apis/songkick');
+
 
 const router = express.Router();
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
-const SONGKICK_API_KEY = process.env.SONGKICK_API_KEY;
+
 
 function generateRandomString(length) {
   let text = '';
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-  for (var i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
-};
-
-function requestLib(options) {
-  return new Promise((resolve, reject) => {
-    request(options, (err, res, body) => {
-      if (!err || res.statusCode === 200) resolve([res, body]);
-      else reject(err);
-    })
-  });
 }
-
 
 router.get('/register', async (req, res) => {
   try {
@@ -35,45 +28,46 @@ router.get('/register', async (req, res) => {
 
     console.log('register');
     const scope = 'user-read-private user-read-email';
-    res.redirect('https://accounts.spotify.com/authorize?' +
-      querystring.stringify({
-        response_type: 'code',
-        client_id: process.env.SPOTIFY_CLIENT_ID,
-        scope: scope,
-        redirect_uri: REDIRECT_URI,
-        state: state
-      }));
+    res.redirect(`https://accounts.spotify.com/authorize?${querystring.stringify({
+      response_type: 'code',
+      client_id: process.env.SPOTIFY_CLIENT_ID,
+      scope,
+      redirect_uri: REDIRECT_URI,
+      state,
+    })}`);
   } catch (err) {
     console.log(err);
   }
 });
 
 async function authenticate(code) {
-  return requestLib({
+  return request({
     method: 'POST',
     url: 'https://accounts.spotify.com/api/token',
     form: {
-      code: code,
+      code,
       grant_type: 'authorization_code',
-      redirect_uri: REDIRECT_URI
+      redirect_uri: REDIRECT_URI,
     },
     headers: {
       'Authorization': 'Basic ' + (new Buffer(CLIENT_ID + ':' + CLIENT_ID_SECRET).toString('base64'))
     },
-    json: true
+    json: true,
   });
 }
 
 async function checkProfile(accessToken) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
     url: 'https://api.spotify.com/v1/me',
     headers: { 'Authorization': 'Bearer ' + accessToken },
-    json: true
+    json: true,
   });
+
+  return  body;
 }
 
 async function getTopTracks(accessToken, artistId) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
     method: 'GET',
     url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?${querystring.stringify({
       country: 'US'
@@ -86,7 +80,7 @@ async function getTopTracks(accessToken, artistId) {
 }
 
 async function searchArtist(query, accessToken) {
-  const [, body] = await requestLib({
+  const [, body] = await request({
     method: 'GET',
     url: `https://api.spotify.com/v1/search?${querystring.stringify({
       q: query,
@@ -100,8 +94,7 @@ async function searchArtist(query, accessToken) {
 
 router.get('/callback', async (req, res) => {
   try {
-    var code = req.query.code || null;
-    var state = req.query.state || null;
+    const code = req.query.code || null;
 
     const [, body] = await authenticate(code);
 
@@ -120,30 +113,5 @@ router.get('/callback', async (req, res) => {
     res.sendStatus(500);
   }
 });
-
-(async() => {
-  try {
-    const BAY_AREA_METRO_ID = 26330;
-    console.log(SONGKICK_API_KEY);
-    // const [resp, body] = await requestLib({
-    //   method: 'GET',
-    //   url: `http://api.songkick.com/api/3.0/search/locations.json?${querystring.stringify({
-    //     apikey: SONGKICK_API_KEY,
-    //     query: 'San Francisco'
-    //   })}`,
-    //   json: true
-    // })
-    const [resp, body] = await requestLib({
-      method: 'GET',
-      url: `http://api.songkick.com/api/3.0/metro_areas/${BAY_AREA_METRO_ID}/calendar.json?${querystring.stringify({
-        apikey: SONGKICK_API_KEY
-      })}`,
-      json: true
-    })
-    console.log(util.inspect(body, false, null));
-  } catch (err) {
-    console.log(err);
-  }
-})()
 
 module.exports = router;
