@@ -5,10 +5,10 @@ function requestLib(options) {
     request(options, (err, res, body) => {
       if (!err || res.statusCode === 200) resolve([res, body]);
       else reject(err);
-    })
+    });
   });
 }
 
 module.exports = {
-  requestLib: requestLib
-}
+  requestLib,
+};
