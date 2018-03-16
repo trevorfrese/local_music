@@ -31,7 +31,7 @@ async function getSongkickCalendar(metroAreaId, pageTotal) {
 function parseArtistsFromCalendar(calendar) {
   const artists = [];
   for (const event of calendar) {
-    event.performance = event.performance.filter((e) => { return e.billing === 'headline'});
+    event.performance = event.performance.filter(e => e.billing === 'headline');
     for (const performance of event.performance) {
       artists.push(performance.displayName);
     }
