@@ -3,41 +3,11 @@ const querystring = require('querystring');
 const util = require('util');
 
 const request = require('../utils/request').requestLib;
-const songkick = require('../apis/songkick');
+const helpers = require('../utils/helpers');
 
-const router = express.Router();
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
-
-
-function generateRandomString(length) {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
-  for (let i = 0; i < length; i += 1) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
-}
-
-router.get('/register', async (req, res) => {
-  try {
-    const state = generateRandomString(16);
-
-    console.log('register');
-    const scope = 'user-read-private user-read-email playlist-modify-private';
-    res.redirect(`https://accounts.spotify.com/authorize?${querystring.stringify({
-      response_type: 'code',
-      client_id: process.env.SPOTIFY_CLIENT_ID,
-      scope,
-      redirect_uri: REDIRECT_URI,
-      state,
-    })}`);
-  } catch (err) {
-    console.log(err);
-  }
-});
 
 async function authenticate(code) {
   return request({
@@ -185,40 +155,20 @@ async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
 }
 
-router.get('/callback', async (req, res) => {
-  try {
-    const code = req.query.code || null;
 
-    const [, body] = await authenticate(code);
-
-    const accessToken = body.access_token;
-    const refreshToken = body.refresh_token;
-
-    console.log('got token', accessToken, refreshToken);
-    console.log('BODY: ', body);
-
-    await checkProfile(accessToken);
-    await searchArtist('Frank ocean', accessToken);
-    await getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
-
-    res.sendStatus(200);
-  } catch (err) {
-    console.log(err);
-    res.sendStatus(500);
-  }
-});
-
-(async () => {
-  try {
-    const accessToken = 'BQCxaCB3Ja12_iLz5qaCjFaB4qrAFrxRBl4s-asp84xOnLQnSmYsxDdU25SJRbeupO7S0Hl-ydof6-iK8IyKiHcrMM8x41Tm3us7fWnkNZ9JHec87Jcq-q23KMUSwg9_iZuRfKEqG7x_RCVhCbaj08xfs7QdQ4yLXUy95lRgOiK4mQBeHFDu6P7uTeLzh8U AQCcWEeGUyKsZOsSRAiupjLyACRqYK6d3l-ifsAMyTXHE9MzwU0ScP1XXUGGbn0hPWi7Wm_becHAU9b73yIxv0zx70pCOypxX2Dwb7wmamIg10ZE809QTFn9KYufAeonQsI';
-    const userId = await checkProfile(accessToken);
-    const playlistId = await createPlaylist(userId, accessToken);
-    const artists = ['Frank ocean', 'Vulfpeck', 'John Mayer'];
-    console.log(playlistId);
-    await addLocalPlaylist(artists, userId, playlistId, accessToken);
-  } catch (err) {
-    console.log(err);
-  }
-})();
-
-module.exports = router;
+module.exports = {
+  authenticate,
+  checkProfile,
+  getTopTracks,
+  searchArtist,
+  createPlaylist,
+  addSongURIsToPlaylist,
+  deleteSongsFromPlaylist,
+  safeSearchArtist,
+  safeGetTopTracks,
+  safeAddSongURIsToPlaylist,
+  addLocalPlaylist,
+  CLIENT_ID,
+  CLIENT_ID_SECRET,
+  REDIRECT_URI,
+};
