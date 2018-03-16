@@ -9,3 +9,5 @@ app.use(express.static(path.join(__dirname, '/public')));
 app.use('/spotify', require('./routes/spotify'));
 
 require('./utils/sendgrid');
+
+console.log('HERE!');
