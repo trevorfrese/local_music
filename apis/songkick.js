@@ -1,13 +1,13 @@
 const querystring = require('querystring');
 
-const SONGKICK_API_KEY = process.env.SONGKICK_API_KEY;
+const API_KEY = process.env.SONGKICK_API_KEY;
 const request = require('../utils/request').requestLib;
 
 async function getCalendarPage(metroAreaId, pageNumber) {
   const [, body] = await request({
     method: 'GET',
     url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-      apikey: SONGKICK_API_KEY,
+      apikey: API_KEY,
       page: pageNumber,
     })}`,
     json: true,
@@ -19,13 +19,23 @@ async function getSongkickCalendar(metroAreaId, pageTotal) {
   let calendar = [];
   // TO MAKE IT RUN FAST SET pageTotal = 1
   for (let i = 1; i < pageTotal + 1; i += 1) {
-    console.log('on page ', i);
     const result = (await getCalendarPage(metroAreaId, i)).resultsPage;
     const page = result && result.results && result.results.event;
     calendar = calendar.concat(page);
   }
 
   return calendar;
+  /*
+  let calendar = [];
+  let pages = [];
+  for (let i = 1; i < pageTotal + 1; i++) {
+    pages.push(getCalendarPage(metroAreaId, i));
+  }
+  const val = await Promise.all(pages).then(ret => function(ret) {
+    const res = ret.resultsPage;
+    return [res && res.results && res.results.event];
+  });
+  */
 }
 
 function parseArtistsFromCalendar(calendar) {
@@ -43,7 +53,7 @@ async function getPageTotal(metroAreaId) {
   const [, body] = await request({
     method: 'GET',
     url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-      apikey: SONGKICK_API_KEY,
+      apikey: API_KEY,
     })}`,
     json: true,
   });
@@ -52,7 +62,8 @@ async function getPageTotal(metroAreaId) {
 }
 
 async function getLocalArtists(metroAreaId) {
-  const pageTotal = await getPageTotal(metroAreaId);
+  let pageTotal = await getPageTotal(metroAreaId);
+  pageTotal = 3;
   console.log('page total', pageTotal);
   const calendar = await getSongkickCalendar(metroAreaId, pageTotal);
   const artists = parseArtistsFromCalendar(calendar);
@@ -69,10 +80,12 @@ async function getBayAreaArtists() {
   }
 }
 
-(async () => {
-  try {
-    getBayAreaArtists();
-  } catch (err) {
-    console.log(err);
-  }
-})();
+module.exports = {
+  getCalendarPage,
+  getSongkickCalendar,
+  parseArtistsFromCalendar,
+  getPageTotal,
+  getLocalArtists,
+  getBayAreaArtists,
+  API_KEY,
+};
