@@ -78,12 +78,12 @@ async function getCalendarPage(metroAreaId, page) {
 
 async function getSongkickCalendar(metroAreaId, pageTotal) {
   let calendar = [];
-  const results = [];
+  const promises = [];
   for (let i = 1; i < pageTotal + 1; i += 1) {
     console.log('on page ', i);
-    results.push(getCalendarPage(metroAreaId, i));
+    promises.push(getCalendarPage(metroAreaId, i));
   }
-  const pages = (await Promise.all(results)).map((result) => {
+  const pages = (await Promise.all(promises)).map((result) => {
     const page = result && result.results && result.results.event;
     return page;
   });
@@ -93,15 +93,61 @@ async function getSongkickCalendar(metroAreaId, pageTotal) {
   return calendar;
 }
 
-function parseArtistsFromCalendar(calendar) {
-  const artists = [];
-  for (const event of calendar) {
-    event.performance = event.performance.filter(e => e.billing === 'headline');
-    for (const performance of event.performance) {
-      artists.push(performance.displayName);
-    }
+const processPerformance = async (performance, event) => {
+  const { artist } = performance;
+  let [shouldSkip] = await knex('artist').where('artistId', artist && artist.id);
+  if (shouldSkip) {
+    return;
   }
-  return artists;
+  await knex('artist').insert({
+    name: artist.displayName,
+    songKickUrl: artist.uri,
+    artistId: artist.id,
+  });
+
+  [shouldSkip] = await knex('performance')
+    .where({ eventId: event.id, artistId: artist.id });
+  if (shouldSkip) {
+    return;
+  }
+  await knex('performance').insert({
+    artistId: artist.id,
+    eventId: event.id,
+  });
+};
+
+const processEvent = async (event) => {
+  const [shouldSkip] = await knex('event').where('eventId', event.id);
+  if (shouldSkip) {
+    console.log('SHOULD SIKP', event.id, event.displayName);
+    return;
+  }
+  const headliners = event.performance.filter(e => e.billing === 'headline');
+  const promises = [];
+  headliners.map(performance => promises.push(processPerformance(performance, event)));
+
+  await Promise.all(promises);
+
+  await knex('event').insert({
+    eventId: event.id,
+    name: event.displayName,
+    type: event.type,
+    popularity: event.popularity,
+    songKickUrl: event.uri,
+    date: event.start && new Date(event.start.datetime),
+    venueName: event.venue && event.venue.displayName,
+    venueId: event.venue && event.venue.id,
+  });
+};
+
+async function parseArtistsFromCalendar(calendar) {
+  const promises = [];
+  calendar.map((event) => {
+    promises.push(processEvent(event));
+    return null;
+  });
+
+  await Promise.all(promises);
 }
 
 const getLocalArtists = async (metroAreaId) => {
