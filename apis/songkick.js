@@ -68,13 +68,13 @@ const getPageTotal = async (metroAreaId) => {
   const url = `${BASE_URL}/metro_areas/${metroAreaId}/calendar.json?${params}`;
   const resultsPage = await invokeAPI(url);
   return parseInt(resultsPage.totalEntries / resultsPage.perPage, 10);
-}
+};
 
 const getCalendarPage = async (metroAreaId, page) => {
   const params = getCalendarParams({ page });
   const url = `${BASE_URL}/metro_areas/${metroAreaId}/calendar.json?${params}`;
   return invokeAPI(url);
-}
+};
 
 const getSongkickCalendar = async (metroAreaId, pageTotal) => {
   let calendar = [];
