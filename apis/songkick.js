@@ -126,16 +126,16 @@ const processEvent = async (event, metroAreaId) => {
   headliners.map(performance => promises.push(processPerformance(performance, event)));
 
   await Promise.all(promises);
-
+  const date = new Date((event.start && event.start.datetime) || (event.start && event.start.date));
   await knex('event').insert({
     eventId: event.id,
     name: event.displayName,
     type: event.type,
     popularity: event.popularity,
     songKickUrl: event.uri,
-    date: event.start && new Date(event.start.datetime),
     venueName: event.venue && event.venue.displayName,
     venueId: event.venue && event.venue.id,
+    date,
     metroAreaId,
   });
 };

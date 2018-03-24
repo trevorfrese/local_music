@@ -39,25 +39,11 @@ router.get('/callback', async (req, res) => {
 
     const user = await spotify.checkProfile(accessToken);
     await spotify.storeUser(user, accessToken, refreshToken);
-    // await spotify.searchArtist('Frank ocean', accessToken);
-    // await spotify.getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
 
     res.sendStatus(200);
   } catch (err) {
     res.sendStatus(500);
   }
 });
-
-(async () => {
-  try {
-    const accessToken = 'BQAflBEL87hxLf7aVSYd6wX0vKoZp8YNvN00VB3Vf_OZVVrsZUxJasOwbjozhMBxqfSOJQk6ZH0YHX4BjTvEGiExiDo6GX7I09tClLOFN0CnDQr4bRish02qClXNp7wv1Dm9cc6dgZBDHNcWR8yAjIYTtr27J14CcAxEjgNsj74gZtcjyLpgIKSDumv3koQ';
-    const playlistId = await spotify.createPlaylist(userId, accessToken);
-    const artists = ['Frank ocean', 'Vulfpeck', 'John Mayer'];
-    console.log(playlistId);
-    await spotify.addLocalPlaylist(artists, userId, playlistId, accessToken);
-  } catch (err) {
-    console.log(err);
-  }
-})();
 
 module.exports = router;
