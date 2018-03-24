@@ -153,7 +153,7 @@ async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
 }
 
-async function storeUser(user, accessToken) {
+async function storeUser(user, accessToken, refreshToken) {
   const [existingUser] = await knex('user').where('spotifyId', user.id);
   if (existingUser) {
     await knex('user').where('spotifyId', user.id).update({
@@ -162,6 +162,7 @@ async function storeUser(user, accessToken) {
       imageUrl: user.images ? user.images[0].url : null,
       accountUrl: user.href,
       accessToken,
+      refreshToken,
     });
   } else {
     await knex('user').insert({
@@ -172,6 +173,7 @@ async function storeUser(user, accessToken) {
       imageUrl: user.images ? user.images[0].url : null,
       accountUrl: user.href,
       accessToken,
+      refreshToken,
     });
   }
 }
