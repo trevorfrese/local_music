@@ -116,7 +116,7 @@ const processPerformance = async (performance, event) => {
   });
 };
 
-const processEvent = async (event) => {
+const processEvent = async (event, metroAreaId) => {
   const [shouldSkip] = await knex('event').where('eventId', event.id);
   if (shouldSkip) {
     return;
@@ -136,13 +136,14 @@ const processEvent = async (event) => {
     date: event.start && new Date(event.start.datetime),
     venueName: event.venue && event.venue.displayName,
     venueId: event.venue && event.venue.id,
+    metroAreaId,
   });
 };
 
-const processCalendar = async (calendar) => {
+const processCalendar = async (calendar, metroAreaId) => {
   const promises = [];
   calendar.map((event) => {
-    promises.push(processEvent(event));
+    promises.push(processEvent(event, metroAreaId));
     return null;
   });
 
@@ -153,7 +154,7 @@ const findAllConcerts = async (metroAreaId) => {
   const pageTotal = await getPageTotal(metroAreaId);
   console.log('page total', pageTotal);
   const calendar = await getSongkickCalendar(metroAreaId, pageTotal);
-  processCalendar(calendar);
+  processCalendar(calendar, metroAreaId);
 };
 
 module.exports = {
