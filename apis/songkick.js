@@ -63,20 +63,20 @@ const locationSearch = async (query) => {
   return metroAreaId;
 };
 
-async function getPageTotal(metroAreaId) {
+const getPageTotal = async (metroAreaId) => {
   const params = getCalendarParams();
   const url = `${BASE_URL}/metro_areas/${metroAreaId}/calendar.json?${params}`;
   const resultsPage = await invokeAPI(url);
   return parseInt(resultsPage.totalEntries / resultsPage.perPage, 10);
 }
 
-async function getCalendarPage(metroAreaId, page) {
+const getCalendarPage = async (metroAreaId, page) => {
   const params = getCalendarParams({ page });
   const url = `${BASE_URL}/metro_areas/${metroAreaId}/calendar.json?${params}`;
   return invokeAPI(url);
 }
 
-async function getSongkickCalendar(metroAreaId, pageTotal) {
+const getSongkickCalendar = async (metroAreaId, pageTotal) => {
   let calendar = [];
   const promises = [];
   for (let i = 1; i < pageTotal + 1; i += 1) {
@@ -91,7 +91,7 @@ async function getSongkickCalendar(metroAreaId, pageTotal) {
   calendar = calendar.concat.apply([], pages);
 
   return calendar;
-}
+};
 
 const processPerformance = async (performance, event) => {
   const { artist } = performance;
@@ -119,7 +119,6 @@ const processPerformance = async (performance, event) => {
 const processEvent = async (event) => {
   const [shouldSkip] = await knex('event').where('eventId', event.id);
   if (shouldSkip) {
-    console.log('SHOULD SIKP', event.id, event.displayName);
     return;
   }
   const headliners = event.performance.filter(e => e.billing === 'headline');
@@ -140,7 +139,7 @@ const processEvent = async (event) => {
   });
 };
 
-async function parseArtistsFromCalendar(calendar) {
+const processCalendar = async (calendar) => {
   const promises = [];
   calendar.map((event) => {
     promises.push(processEvent(event));
@@ -148,27 +147,16 @@ async function parseArtistsFromCalendar(calendar) {
   });
 
   await Promise.all(promises);
-}
+};
 
-const getLocalArtists = async (metroAreaId) => {
+const findAllConcerts = async (metroAreaId) => {
   const pageTotal = await getPageTotal(metroAreaId);
   console.log('page total', pageTotal);
   const calendar = await getSongkickCalendar(metroAreaId, pageTotal);
-  const artists = parseArtistsFromCalendar(calendar);
-  return artists;
+  processCalendar(calendar);
 };
-
-// async function getBayAreaArtists() {
-//   try {
-//     const BAY_AREA_METRO_ID = 26330;
-//     const artists = await getLocalArtists(BAY_AREA_METRO_ID);
-//     console.log(artists);
-//   } catch (err) {
-//     console.log(err);
-//   }
-// }
 
 module.exports = {
   locationSearch,
-  getLocalArtists,
+  findAllConcerts,
 };
