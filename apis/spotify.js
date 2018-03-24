@@ -1,9 +1,7 @@
-const express = require('express');
 const querystring = require('querystring');
-const util = require('util');
 
 const request = require('../utils/request').requestLib;
-const helpers = require('../utils/helpers');
+const knex = require('knex')(require('../knexfile'));
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
@@ -31,7 +29,7 @@ async function checkProfile(accessToken) {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  return body.id;
+  return body;
 }
 
 async function getTopTracks(accessToken, artistId, numTop) {
@@ -155,6 +153,29 @@ async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
 }
 
+async function storeUser(user, accessToken) {
+  const [existingUser] = await knex('user').where('spotifyId', user.id);
+  if (existingUser) {
+    await knex('user').where('spotifyId', user.id).update({
+      name: user.display_name,
+      country: user.country,
+      imageUrl: user.images ? user.images[0].url : null,
+      accountUrl: user.href,
+      accessToken,
+    });
+  } else {
+    await knex('user').insert({
+      name: user.display_name,
+      spotifyId: user.id,
+      email: user.email,
+      country: user.country,
+      imageUrl: user.images ? user.images[0].url : null,
+      accountUrl: user.href,
+      accessToken,
+    });
+  }
+}
+
 
 module.exports = {
   authenticate,
@@ -168,6 +189,7 @@ module.exports = {
   safeGetTopTracks,
   safeAddSongURIsToPlaylist,
   addLocalPlaylist,
+  storeUser,
   CLIENT_ID,
   CLIENT_ID_SECRET,
   REDIRECT_URI,

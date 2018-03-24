@@ -40,13 +40,13 @@ router.get('/callback', async (req, res) => {
     console.log('got token', accessToken, refreshToken);
     console.log('BODY: ', body);
 
-    await spotify.checkProfile(accessToken);
-    await spotify.searchArtist('Frank ocean', accessToken);
-    await spotify.getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
+    const user = await spotify.checkProfile(accessToken);
+    await spotify.storeUser(user, accessToken);
+    // await spotify.searchArtist('Frank ocean', accessToken);
+    // await spotify.getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
 
     res.sendStatus(200);
   } catch (err) {
-    console.log(err);
     res.sendStatus(500);
   }
 });
