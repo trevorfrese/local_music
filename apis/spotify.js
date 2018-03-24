@@ -147,23 +147,43 @@ function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
   }
 }
 
-async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
-  let tracks = [];
-  for (const artist of artists) {
-    const artistId = await safeSearchArtist(artist, accessToken);
-    console.log('Artist ID:', artistId);
-    if (artistId !== undefined) {
-      tracks = tracks.concat(await safeGetTopTracks(accessToken, artistId, 3));
-    }
-  }
-  const sortedTracks = tracks.sort((a, b) => b[1] - a[1]);
-  const trackURIs = sortedTracks.map(track => track[0]);
-  safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
-}
+// async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
+//   let tracks = [];
+//   for (const artist of artists) {
+//     const artistId = await safeSearchArtist(artist, accessToken);
+//     console.log('Artist ID:', artistId);
+//     if (artistId !== undefined) {
+//       tracks = tracks.concat(await safeGetTopTracks(accessToken, artistId, 3));
+//     }
+//   }
+//   const sortedTracks = tracks.sort((a, b) => b[1] - a[1]);
+//   const trackURIs = sortedTracks.map(track => track[0]);
+//   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
+// }
 
-const buildPlaylist = async (userId, accessToken) => {
-  const playlistId = await createPlaylist(userId, accessToken);
-  console.log('Created playlist ', playlistId);
+const addSongsToPlaylist = async (playlistId, events, accessToken) => {
+  // For all the events, get the artists
+  // Do spotify look up of artists
+  // If artists are in right genre, get top 1-3 trackURIs
+  // Insert tracks to playlist
+};
+
+const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
+  const playlistId = await createPlaylist(spotifyId, accessToken);
+  const startDate = moment()
+    .startOf('week')
+    .add('2', 'weeks')
+    .format('YYYY-MM-DD');
+  const endDate = moment()
+    .startOf('week')
+    .add('2', 'weeks')
+    .endOf('week')
+    .format('YYYY-MM-DD');
+  const events = await knex('event').debug().whereRaw(
+    'metroAreaId = ? and date >= ? and date <= ?',
+    [metroAreaId, startDate, endDate],
+  );
+  await addSongsToPlaylist(playlistId, events, accessToken);
 };
 
 const storeUser = async (user, accessToken, refreshToken) => {
