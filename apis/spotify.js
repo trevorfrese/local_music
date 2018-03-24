@@ -1,4 +1,5 @@
 const querystring = require('querystring');
+const moment = require('moment');
 
 const request = require('../utils/request').requestLib;
 const knex = require('knex')(require('../knexfile'));
@@ -7,32 +8,30 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
 
-async function authenticate(code) {
-  return request({
-    method: 'POST',
-    url: 'https://accounts.spotify.com/api/token',
-    form: {
-      code,
-      grant_type: 'authorization_code',
-      redirect_uri: REDIRECT_URI,
-    },
-    headers: {
-      Authorization: `Basic ${(Buffer.from(`${CLIENT_ID}:${CLIENT_ID_SECRET}`).toString('base64'))}`,
-    },
-    json: true,
-  });
-}
+const authenticate = async code => request({
+  method: 'POST',
+  url: 'https://accounts.spotify.com/api/token',
+  form: {
+    code,
+    grant_type: 'authorization_code',
+    redirect_uri: REDIRECT_URI,
+  },
+  headers: {
+    Authorization: `Basic ${(Buffer.from(`${CLIENT_ID}:${CLIENT_ID_SECRET}`).toString('base64'))}`,
+  },
+  json: true,
+});
 
-async function checkProfile(accessToken) {
+const checkProfile = async (accessToken) => {
   const [, body] = await request({
     url: 'https://api.spotify.com/v1/me',
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
   return body;
-}
+};
 
-async function getTopTracks(accessToken, artistId, numTop) {
+const getTopTracks = async (accessToken, artistId, numTop) => {
   const [, body] = await request({
 
     method: 'GET',
@@ -43,9 +42,9 @@ async function getTopTracks(accessToken, artistId, numTop) {
     json: true,
   });
   return body.tracks.slice(0, numTop).map(track => [track.uri, track.popularity]);
-}
+};
 
-async function searchArtist(query, accessToken) {
+const searchArtist = async (query, accessToken) => {
   const [, body] = await request({
     method: 'GET',
     url: `https://api.spotify.com/v1/search?${querystring.stringify({
@@ -56,9 +55,18 @@ async function searchArtist(query, accessToken) {
     json: true,
   });
   return body.artists.items[0].id;
-}
+};
 
-async function createPlaylist(userId, accessToken) {
+const createPlaylist = async (userId, accessToken) => {
+  const startDate = moment()
+    .startOf('week')
+    .add('2', 'weeks')
+    .format('MM/DD/YYYY');
+  const endDate = moment()
+    .startOf('week')
+    .add('2', 'weeks')
+    .endOf('week')
+    .format('MM/DD/YYYY');
   const [, body] = await request({
     method: 'POST',
     url: `https://api.spotify.com/v1/users/${userId}/playlists`,
@@ -67,15 +75,15 @@ async function createPlaylist(userId, accessToken) {
       'Content-Type': 'application/json',
     },
     form: JSON.stringify({
-      name: 'Discover Local Weekly',
+      name: `${startDate} Local Music`,
       public: false,
       collaborative: false,
-      description: 'This is a playlist for local music coming near you in two weeks time.',
+      description: `This is a playlist for local music coming near you from ${startDate} to ${endDate}`,
     }),
     json: true,
   });
   return body.id;
-}
+};
 
 async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
   const n = trackURIs.length;
@@ -153,7 +161,12 @@ async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
 }
 
-async function storeUser(user, accessToken, refreshToken) {
+const buildPlaylist = async (userId, accessToken) => {
+  const playlistId = await createPlaylist(userId, accessToken);
+  console.log('Created playlist ', playlistId);
+};
+
+const storeUser = async (user, accessToken, refreshToken) => {
   const [existingUser] = await knex('user').where('spotifyId', user.id);
   if (existingUser) {
     await knex('user').where('spotifyId', user.id).update({
@@ -176,7 +189,7 @@ async function storeUser(user, accessToken, refreshToken) {
       refreshToken,
     });
   }
-}
+};
 
 
 module.exports = {
@@ -191,6 +204,7 @@ module.exports = {
   safeGetTopTracks,
   safeAddSongURIsToPlaylist,
   addLocalPlaylist,
+  buildPlaylist,
   storeUser,
   CLIENT_ID,
   CLIENT_ID_SECRET,
