@@ -1,8 +1,7 @@
 exports.up = knex => knex.schema.table('user', (t) => {
-  t.string('accessToken', 2000).notNullable();
+  t.string('refreshToken');
 });
 
-
 exports.down = knex => knex.schema.table('user', (t) => {
-  t.dropColumn('accessToken');
+  t.dropColumn('refreshToken');
 });
