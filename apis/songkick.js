@@ -78,14 +78,17 @@ async function getCalendarPage(metroAreaId, page) {
 
 async function getSongkickCalendar(metroAreaId, pageTotal) {
   let calendar = [];
-  // TO MAKE IT RUN FAST SET pageTotal = 1
-  pageTotal = 1
+  const results = [];
   for (let i = 1; i < pageTotal + 1; i += 1) {
     console.log('on page ', i);
-    const result = await getCalendarPage(metroAreaId, i);
-    const page = result && result.results && result.results.event;
-    calendar = calendar.concat(page);
+    results.push(getCalendarPage(metroAreaId, i));
   }
+  const pages = (await Promise.all(results)).map((result) => {
+    const page = result && result.results && result.results.event;
+    return page;
+  });
+
+  calendar = calendar.concat.apply([], pages);
 
   return calendar;
 }
