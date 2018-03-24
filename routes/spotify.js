@@ -1,10 +1,7 @@
 const express = require('express');
 const querystring = require('querystring');
-const util = require('util');
 
 const helpers = require('../utils/helpers');
-
-const songkick = require('../apis/songkick');
 const spotify = require('../apis/spotify');
 
 const router = express.Router();
@@ -37,11 +34,11 @@ router.get('/callback', async (req, res) => {
     const accessToken = body.access_token;
     const refreshToken = body.refresh_token;
 
-    console.log('got token', accessToken, refreshToken);
-    console.log('BODY: ', body);
+    // console.log('got token', accessToken, refreshToken);
+    // console.log('BODY: ', body);
 
     const user = await spotify.checkProfile(accessToken);
-    await spotify.storeUser(user, accessToken);
+    await spotify.storeUser(user, accessToken, refreshToken);
     // await spotify.searchArtist('Frank ocean', accessToken);
     // await spotify.getTopTracks(accessToken, '2h93pZq0e7k5yf4dywlkpM');
 
