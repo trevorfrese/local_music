@@ -1,5 +1,6 @@
 const querystring = require('querystring');
 const moment = require('moment');
+const throat = require('throat');
 
 const request = require('../utils/request').requestLib;
 const knex = require('knex')(require('../knexfile'));
@@ -33,11 +34,8 @@ const checkProfile = async (accessToken) => {
 
 const getTopTracks = async (accessToken, artistId, numTop) => {
   const [, body] = await request({
-
     method: 'GET',
-    url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?${querystring.stringify({
-      country: 'US',
-    })}`,
+    url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?country=US}`,
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
@@ -54,7 +52,7 @@ const searchArtist = async (query, accessToken) => {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  return body.artists.items[0].id;
+  return body && body.artists && body.artists.items[0] && body.artists.items[0].id;
 };
 
 const createPlaylist = async (userId, accessToken) => {
@@ -121,23 +119,23 @@ async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
   console.log(body);
 }
 
-async function safeSearchArtist(artist, accessToken) {
-  try {
-    return await searchArtist(artist, accessToken);
-  } catch (err) {
-    return undefined;
-  }
-}
+// async function safeSearchArtist(artist, accessToken) {
+//   try {
+//     return await searchArtist(artist, accessToken);
+//   } catch (err) {
+//     return undefined;
+//   }
+// }
 
-async function safeGetTopTracks(accessToken, artistId, numTop) {
-  try {
-    const topURIs = await getTopTracks(accessToken, artistId, numTop);
-    return topURIs;
-  } catch (err) {
-    console.log(err);
-    return undefined;
-  }
-}
+// async function safeGetTopTracks(accessToken, artistId, numTop) {
+//   try {
+//     const topURIs = await getTopTracks(accessToken, artistId, numTop);
+//     return topURIs;
+//   } catch (err) {
+//     console.log(err);
+//     return undefined;
+//   }
+// }
 
 function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
   try {
@@ -161,11 +159,37 @@ function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
 //   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
 // }
 
+const getArtists = async (events) => {
+  const promises = [];
+  events.map((e) => {
+    const promise = knex('performance')
+      .where('eventId', e.eventId)
+      .leftJoin('artist', 'performance.artistId', 'artist.artistId');
+    promises.push(promise);
+    return null;
+  });
+
+  return (await Promise.all(promises))
+    .map(artist => artist[0] && artist[0].name)
+    .filter(artist => artist !== undefined);
+};
+
+const searchArtists = async (artists, accessToken) =>
+  (await Promise.all(artists.map(throat(8, artist => searchArtist(artist, accessToken)))))
+    .filter(artist => artist !== undefined);
+
 const addSongsToPlaylist = async (playlistId, events, accessToken) => {
   // For all the events, get the artists
   // Do spotify look up of artists
   // If artists are in right genre, get top 1-3 trackURIs
   // Insert tracks to playlist
+  console.log('get artist');
+  const artists = await getArtists(events);
+  console.log('done', artists);
+  const tempArtists = artists.slice(0, 10);
+  const spotifyArtists = await searchArtists(tempArtists, accessToken);
+  const spotifyTopSongs =
+  console.log('spotifys', spotifyArtists);
 };
 
 const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
@@ -179,7 +203,7 @@ const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
     .add('2', 'weeks')
     .endOf('week')
     .format('YYYY-MM-DD');
-  const events = await knex('event').debug().whereRaw(
+  const events = await knex('event').whereRaw(
     'metroAreaId = ? and date >= ? and date <= ?',
     [metroAreaId, startDate, endDate],
   );
@@ -220,10 +244,10 @@ module.exports = {
   createPlaylist,
   addSongURIsToPlaylist,
   deleteSongsFromPlaylist,
-  safeSearchArtist,
-  safeGetTopTracks,
+  // safeSearchArtist,
+  // safeGetTopTracks,
   safeAddSongURIsToPlaylist,
-  addLocalPlaylist,
+  // addLocalPlaylist,
   buildPlaylist,
   storeUser,
   CLIENT_ID,
