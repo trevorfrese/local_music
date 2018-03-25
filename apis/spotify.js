@@ -89,41 +89,56 @@ const createPlaylist = async (userId, accessToken) => {
   return body.id;
 };
 
-async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
-  const n = trackURIs.length;
-  let start = 0;
-  let end = Math.min(100, n);
-  while (start < n) {
-    // eslint-disable-next-line
-    const [, body] = await request({
-      method: 'POST',
-      url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      json: true,
-      form: JSON.stringify({ uris: trackURIs.slice(start, end) }),
-    });
-    console.log(body);
-    start = end;
-    end = Math.min(end + 100, n);
-  }
-}
-
-async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
+const addTracksToPlaylist = async (tracks, playlistId, userId, accessToken) => {
   const [, body] = await request({
-    method: 'PUT',
+    method: 'POST',
     url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     json: true,
-    form: JSON.stringify({ uris: [] }),
+    form: JSON.stringify({ uris: tracks }),
   });
-  console.log(body);
-}
+
+  return body;
+};
+
+// async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
+//   const n = trackURIs.length;
+//   let start = 0;
+//   let end = Math.min(100, n);
+//   while (start < n) {
+//     // eslint-disable-next-line
+//     const [, body] = await request({
+//       method: 'POST',
+//       url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
+//       headers: {
+//         Authorization: `Bearer ${accessToken}`,
+//         'Content-Type': 'application/json',
+//       },
+//       json: true,
+//       form: JSON.stringify({ uris: trackURIs.slice(start, end) }),
+//     });
+//     console.log(body);
+//     start = end;
+//     end = Math.min(end + 100, n);
+//   }
+// }
+
+// async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
+//   const [, body] = await request({
+//     method: 'PUT',
+//     url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
+//     headers: {
+//       Authorization: `Bearer ${accessToken}`,
+//       'Content-Type': 'application/json',
+//     },
+//     json: true,
+//     form: JSON.stringify({ uris: [] }),
+//   });
+//   console.log(body);
+// }
 
 // async function safeSearchArtist(artist, accessToken) {
 //   try {
@@ -191,7 +206,20 @@ const getTopTracks = async (artists, accessToken) => {
   return [].concat(...trackLists);
 };
 
-const addSongsToPlaylist = async (playlistId, events, accessToken) => {
+const insertTracksIntoPlaylist = async (tracks, playlistId, spotifyId, accessToken) => {
+  const songs = tracks.sort((a, b) => a.popularity - b.popularity).reverse();
+  const n = songs.length;
+  let start = 0;
+  let end = Math.min(100, n);
+  while (start < n) {
+    const trackURIs = tracks.slice(start, end).map(t => t.uri);
+    addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken);
+    start = end;
+    end = Math.min(end + 100, n);
+  }
+};
+
+const addSongsToPlaylist = async (playlistId, events, spotifyId, accessToken) => {
   // For all the events, get the artists
   // Do spotify look up of artists
   // If artists are in right genre, get top 1-3 trackURIs
@@ -204,11 +232,13 @@ const addSongsToPlaylist = async (playlistId, events, accessToken) => {
   console.log('spotifys', spotifyArtists);
   const tracks = await getTopTracks(spotifyArtists, accessToken);
   console.log('tracks', tracks);
+  await insertTracksIntoPlaylist(tracks, playlistId, spotifyId, accessToken);
+  console.log('inserted all');
 };
 
-const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
-  // const playlistId = await createPlaylist(spotifyId, accessToken);
-  const playlistId = 'test';
+const buildPlaylist = async (spotifyId, metroAreaId, accessToken) => {
+  const playlistId = await createPlaylist(spotifyId, accessToken);
+  // const playlistId = 'test';
   const startDate = moment()
     .startOf('week')
     .add('2', 'weeks')
@@ -222,7 +252,7 @@ const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
     'metroAreaId = ? and date >= ? and date <= ?',
     [metroAreaId, startDate, endDate],
   );
-  await addSongsToPlaylist(playlistId, events, accessToken);
+  await addSongsToPlaylist(playlistId, events, spotifyId, accessToken);
 };
 
 const storeUser = async (user, accessToken, refreshToken) => {
@@ -257,12 +287,6 @@ module.exports = {
   getTopTracks,
   searchArtist,
   createPlaylist,
-  addSongURIsToPlaylist,
-  deleteSongsFromPlaylist,
-  // safeSearchArtist,
-  // safeGetTopTracks,
-  // safeAddSongURIsToPlaylist,
-  // addLocalPlaylist,
   buildPlaylist,
   storeUser,
   CLIENT_ID,
