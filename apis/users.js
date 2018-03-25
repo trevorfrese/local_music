@@ -8,7 +8,7 @@ async function retrieveUser(userId) {
   const metroAreaId = await songkick.locationSearch('Los Angeles');
   console.log('metro area id \n', metroAreaId, '\n');
   // await songkick.findAllConcerts(metroAreaId);
-  await spotify.buildPlaylist(user.spotifyId, user.accessToken, metroAreaId);
+  await spotify.buildPlaylist(user.spotifyId, metroAreaId, user.accessToken);
 }
 
 module.exports = {
