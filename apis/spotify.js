@@ -8,6 +8,7 @@ const knex = require('knex')(require('../knexfile'));
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_ID_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3000/spotify/callback';
+const BASE_URL = 'https://api.spotify.com/v1';
 
 const authenticate = async code => request({
   method: 'POST',
@@ -25,27 +26,28 @@ const authenticate = async code => request({
 
 const checkProfile = async (accessToken) => {
   const [, body] = await request({
-    url: 'https://api.spotify.com/v1/me',
+    url: `${BASE_URL}/me`,
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
   return body;
 };
 
-const getTopTracks = async (accessToken, artistId, numTop) => {
+const topTracks = async (artistId, accessToken, numTop) => {
   const [, body] = await request({
     method: 'GET',
-    url: `https://api.spotify.com/v1/artists/${artistId}/top-tracks?country=US}`,
+    url: `${BASE_URL}/artists/${artistId}/top-tracks?country=US`,
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
+  console.log(body.tracks);
   return body.tracks.slice(0, numTop).map(track => [track.uri, track.popularity]);
 };
 
 const searchArtist = async (query, accessToken) => {
   const [, body] = await request({
     method: 'GET',
-    url: `https://api.spotify.com/v1/search?${querystring.stringify({
+    url: `${BASE_URL}/search?${querystring.stringify({
       q: query,
       type: 'artist',
     })}`,
@@ -67,7 +69,7 @@ const createPlaylist = async (userId, accessToken) => {
     .format('MM/DD/YYYY');
   const [, body] = await request({
     method: 'POST',
-    url: `https://api.spotify.com/v1/users/${userId}/playlists`,
+    url: `${BASE_URL}/users/${userId}/playlists`,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -91,7 +93,7 @@ async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs)
     // eslint-disable-next-line
     const [, body] = await request({
       method: 'POST',
-      url: `https://api.spotify.com/v1/users/${userId}/playlists/${playlistId}/tracks`,
+      url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -108,7 +110,7 @@ async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs)
 async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
   const [, body] = await request({
     method: 'PUT',
-    url: `https://api.spotify.com/v1/users/${userId}/playlists/${playlistId}/tracks`,
+    url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -178,6 +180,9 @@ const searchArtists = async (artists, accessToken) =>
   (await Promise.all(artists.map(throat(8, artist => searchArtist(artist, accessToken)))))
     .filter(artist => artist !== undefined);
 
+const getTopTracks = async (artists, accessToken) =>
+  (await Promise.all(artists.map(throat(8, artist => topTracks(artist, accessToken, 3)))))
+    .filter(track => track !== undefined);
 const addSongsToPlaylist = async (playlistId, events, accessToken) => {
   // For all the events, get the artists
   // Do spotify look up of artists
@@ -188,12 +193,13 @@ const addSongsToPlaylist = async (playlistId, events, accessToken) => {
   console.log('done', artists);
   const tempArtists = artists.slice(0, 10);
   const spotifyArtists = await searchArtists(tempArtists, accessToken);
-  const spotifyTopSongs =
+  const tracks = await getTopTracks(spotifyArtists, accessToken)
   console.log('spotifys', spotifyArtists);
 };
 
 const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
-  const playlistId = await createPlaylist(spotifyId, accessToken);
+  // const playlistId = await createPlaylist(spotifyId, accessToken);
+  const playlistId = 'test';
   const startDate = moment()
     .startOf('week')
     .add('2', 'weeks')
