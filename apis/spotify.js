@@ -40,8 +40,12 @@ const topTracks = async (artistId, accessToken, numTop) => {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  console.log(body.tracks);
-  return body.tracks.slice(0, numTop).map(track => [track.uri, track.popularity]);
+  if (body.tracks) {
+    return body.tracks
+      .slice(0, numTop)
+      .map(track => ({ uri: track.uri, popularity: track.popularity }));
+  }
+  return undefined;
 };
 
 const searchArtist = async (query, accessToken) => {
@@ -139,13 +143,13 @@ async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
 //   }
 // }
 
-function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
-  try {
-    addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
-  } catch (err) {
-    console.log(err);
-  }
-}
+// function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
+//   try {
+//     addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
+//   } catch (err) {
+//     console.log(err);
+//   }
+// }
 
 // async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
 //   let tracks = [];
@@ -180,9 +184,13 @@ const searchArtists = async (artists, accessToken) =>
   (await Promise.all(artists.map(throat(8, artist => searchArtist(artist, accessToken)))))
     .filter(artist => artist !== undefined);
 
-const getTopTracks = async (artists, accessToken) =>
-  (await Promise.all(artists.map(throat(8, artist => topTracks(artist, accessToken, 3)))))
+const getTopTracks = async (artists, accessToken) => {
+  const trackLists = (await Promise.all(artists
+    .map(throat(8, artist => topTracks(artist, accessToken, 3)))))
     .filter(track => track !== undefined);
+  return [].concat(...trackLists);
+};
+
 const addSongsToPlaylist = async (playlistId, events, accessToken) => {
   // For all the events, get the artists
   // Do spotify look up of artists
@@ -193,8 +201,9 @@ const addSongsToPlaylist = async (playlistId, events, accessToken) => {
   console.log('done', artists);
   const tempArtists = artists.slice(0, 10);
   const spotifyArtists = await searchArtists(tempArtists, accessToken);
-  const tracks = await getTopTracks(spotifyArtists, accessToken)
   console.log('spotifys', spotifyArtists);
+  const tracks = await getTopTracks(spotifyArtists, accessToken);
+  console.log('tracks', tracks);
 };
 
 const buildPlaylist = async (spotifyId, accessToken, metroAreaId) => {
@@ -252,7 +261,7 @@ module.exports = {
   deleteSongsFromPlaylist,
   // safeSearchArtist,
   // safeGetTopTracks,
-  safeAddSongURIsToPlaylist,
+  // safeAddSongURIsToPlaylist,
   // addLocalPlaylist,
   buildPlaylist,
   storeUser,
