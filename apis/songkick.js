@@ -1,78 +1,163 @@
+const { SONGKICK_API_KEY } = process.env;
+const BASE_URL = 'http://api.songkick.com/api/3.0';
+
+const knex = require('knex')(require('../knexfile'));
+
 const querystring = require('querystring');
-
-const SONGKICK_API_KEY = process.env.SONGKICK_API_KEY;
 const request = require('../utils/request').requestLib;
+const moment = require('moment');
 
-async function getCalendarPage(metroAreaId, pageNumber) {
+const invokeAPI = async (url) => {
   const [, body] = await request({
     method: 'GET',
-    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-      apikey: SONGKICK_API_KEY,
-      page: pageNumber,
-    })}`,
+    url,
     json: true,
   });
-  return body;
-}
+  return body.resultsPage;
+};
 
-async function getSongkickCalendar(metroAreaId, pageTotal) {
+const getCalendarParams = (additionalParams = {}) => {
+  const min = moment()
+    .startOf('week')
+    .add('2', 'weeks')
+    .format('YYYY-MM-DD');
+  const max = moment()
+    .startOf('week')
+    .add('2', 'weeks')
+    .endOf('week')
+    .format('YYYY-MM-DD');
+  let params = additionalParams;
+  params = {
+    ...params,
+    apikey: SONGKICK_API_KEY,
+    min_date: min,
+    max_date: max,
+  };
+
+  return querystring.stringify(params);
+};
+
+const getMetroAreaId = async (query) => {
+  const params = querystring.stringify({
+    apikey: SONGKICK_API_KEY,
+    query,
+  });
+
+  const url = `${BASE_URL}/search/locations.json?${params}`;
+  const result = await invokeAPI(url);
+  const [location] = result && result.results && result.results.location;
+  return location && location.metroArea && location.metroArea.id;
+};
+
+const locationSearch = async (query) => {
+  const [metroArea] = await knex('metroArea').where('location', query);
+  if (metroArea) {
+    return metroArea.metroAreaId;
+  }
+
+  const metroAreaId = await getMetroAreaId(query);
+  await knex('metroArea').insert({
+    location: query,
+    metroAreaId,
+  });
+  return metroAreaId;
+};
+
+const getPageTotal = async (metroAreaId) => {
+  const params = getCalendarParams();
+  const url = `${BASE_URL}/metro_areas/${metroAreaId}/calendar.json?${params}`;
+  const resultsPage = await invokeAPI(url);
+  return parseInt(resultsPage.totalEntries / resultsPage.perPage, 10);
+};
+
+const getCalendarPage = async (metroAreaId, page) => {
+  const params = getCalendarParams({ page });
+  const url = `${BASE_URL}/metro_areas/${metroAreaId}/calendar.json?${params}`;
+  return invokeAPI(url);
+};
+
+const getSongkickCalendar = async (metroAreaId, pageTotal) => {
   let calendar = [];
-  // TO MAKE IT RUN FAST SET pageTotal = 1
+  const promises = [];
   for (let i = 1; i < pageTotal + 1; i += 1) {
     console.log('on page ', i);
-    const result = (await getCalendarPage(metroAreaId, i)).resultsPage;
+    promises.push(getCalendarPage(metroAreaId, i));
+  }
+  const pages = (await Promise.all(promises)).map((result) => {
     const page = result && result.results && result.results.event;
-    calendar = calendar.concat(page);
-  }
-
-  return calendar;
-}
-
-function parseArtistsFromCalendar(calendar) {
-  const artists = [];
-  for (const event of calendar) {
-    event.performance = event.performance.filter(e => e.billing === 'headline');
-    for (const performance of event.performance) {
-      artists.push(performance.displayName);
-    }
-  }
-  return artists;
-}
-
-async function getPageTotal(metroAreaId) {
-  const [, body] = await request({
-    method: 'GET',
-    url: `http://api.songkick.com/api/3.0/metro_areas/${metroAreaId}/calendar.json?${querystring.stringify({
-      apikey: SONGKICK_API_KEY,
-    })}`,
-    json: true,
+    return page;
   });
 
-  return parseInt(body.resultsPage.totalEntries / body.resultsPage.perPage, 10);
-}
+  calendar = calendar.concat.apply([], pages);
 
-async function getLocalArtists(metroAreaId) {
+  return calendar;
+};
+
+const processPerformance = async (performance, event) => {
+  const { artist } = performance;
+  let [shouldSkip] = await knex('artist').where('artistId', artist && artist.id);
+  if (shouldSkip) {
+    return;
+  }
+  await knex('artist').insert({
+    name: artist.displayName,
+    songKickUrl: artist.uri,
+    artistId: artist.id,
+  });
+
+  [shouldSkip] = await knex('performance')
+    .where({ eventId: event.id, artistId: artist.id });
+  if (shouldSkip) {
+    return;
+  }
+  await knex('performance').insert({
+    artistId: artist.id,
+    eventId: event.id,
+  });
+};
+
+const processEvent = async (event, metroAreaId) => {
+  const [shouldSkip] = await knex('event').where('eventId', event.id);
+  if (shouldSkip) {
+    return;
+  }
+  const headliners = event.performance.filter(e => e.billing === 'headline');
+  const promises = [];
+  headliners.map(performance => promises.push(processPerformance(performance, event)));
+
+  await Promise.all(promises);
+  const date = new Date((event.start && event.start.datetime) || (event.start && event.start.date));
+  await knex('event').insert({
+    eventId: event.id,
+    name: event.displayName,
+    type: event.type,
+    popularity: event.popularity,
+    songKickUrl: event.uri,
+    venueName: event.venue && event.venue.displayName,
+    venueId: event.venue && event.venue.id,
+    date,
+    metroAreaId,
+  });
+};
+
+const processCalendar = async (calendar, metroAreaId) => {
+  const promises = [];
+  calendar.map((event) => {
+    promises.push(processEvent(event, metroAreaId));
+    return null;
+  });
+
+  await Promise.all(promises);
+};
+
+const findAllConcerts = async (metroAreaId) => {
   const pageTotal = await getPageTotal(metroAreaId);
   console.log('page total', pageTotal);
   const calendar = await getSongkickCalendar(metroAreaId, pageTotal);
-  const artists = parseArtistsFromCalendar(calendar);
-  return artists;
-}
+  processCalendar(calendar, metroAreaId);
+};
 
-async function getBayAreaArtists() {
-  try {
-    const BAY_AREA_METRO_ID = 26330;
-    const artists = await getLocalArtists(BAY_AREA_METRO_ID);
-    console.log(artists);
-  } catch (err) {
-    console.log(err);
-  }
-}
-
-(async () => {
-  try {
-    getBayAreaArtists();
-  } catch (err) {
-    console.log(err);
-  }
-})();
+module.exports = {
+  locationSearch,
+  findAllConcerts,
+};
