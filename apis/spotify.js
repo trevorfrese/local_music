@@ -143,13 +143,15 @@ const insertTracksIntoPlaylist = async (tracks, playlistId, spotifyId, accessTok
   const n = songs.length;
   let start = 0;
   let end = Math.min(100, n);
+  const promises = [];
   while (start < n) {
     const trackURIs = tracks.slice(start, end).map(t => t.uri);
     console.log(`batch ${start} - ${end}`, trackURIs);
-    await addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken);
+    promises.push(addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken));
     start = end;
     end = Math.min(end + 100, n);
   }
+  await Promise.all(promises);
 };
 
 const addSongsToPlaylist = async (playlistId, events, spotifyId, genres, accessToken) => {
