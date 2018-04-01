@@ -1,6 +1,7 @@
 const querystring = require('querystring');
 const moment = require('moment');
 const throat = require('throat');
+const _ = require('underscore');
 
 const request = require('../utils/request').requestLib;
 const knex = require('knex')(require('../knexfile'));
@@ -40,7 +41,7 @@ const topTracks = async (artistId, accessToken, numTop) => {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  if (body.tracks) {
+  if (body && body.tracks) {
     return body.tracks
       .slice(0, numTop)
       .map(track => ({ uri: track.uri, popularity: track.popularity }));
@@ -58,7 +59,12 @@ const searchArtist = async (query, accessToken) => {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  return body && body.artists && body.artists.items[0] && body.artists.items[0].id;
+  process.stdout.write('=');
+  const artist = body && body.artists && body.artists.items[0];
+  if (artist) {
+    return { artistId: artist.id, genres: artist.genres };
+  }
+  return undefined;
 };
 
 const createPlaylist = async (userId, accessToken) => {
@@ -119,13 +125,15 @@ const getArtists = async (events) => {
     .filter(artist => artist !== undefined);
 };
 
-const searchArtists = async (artists, accessToken) =>
+const searchArtists = async (artists, genres, accessToken) =>
   (await Promise.all(artists.map(throat(8, artist => searchArtist(artist, accessToken)))))
-    .filter(artist => artist !== undefined);
+    .filter(artist => artist !== undefined && _.intersection(genres, artist.genres).length > 0)
+    .map(artist => artist.artistId);
+
 
 const getTopTracks = async (artists, accessToken) => {
   const trackLists = (await Promise.all(artists
-    .map(throat(8, artist => topTracks(artist, accessToken, 3)))))
+    .map(throat(8, artist => topTracks(artist, accessToken, 2)))))
     .filter(track => track !== undefined);
   return [].concat(...trackLists);
 };
@@ -137,28 +145,30 @@ const insertTracksIntoPlaylist = async (tracks, playlistId, spotifyId, accessTok
   let end = Math.min(100, n);
   while (start < n) {
     const trackURIs = tracks.slice(start, end).map(t => t.uri);
-    addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken);
+    console.log(`batch ${start} - ${end}`, trackURIs);
+    await addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken);
     start = end;
     end = Math.min(end + 100, n);
   }
 };
 
-const addSongsToPlaylist = async (playlistId, events, spotifyId, accessToken) => {
-  // If artists are in right genre, get top 1-3 trackURIs
-  // Insert tracks to playlist
+const addSongsToPlaylist = async (playlistId, events, spotifyId, genres, accessToken) => {
+  // TODO ADD ALL SPOTIFY ARTISTS TO DATABASE. TRACKS... MAYBE...?
   console.log('get artist');
   const artists = await getArtists(events);
   console.log('done', artists);
-  const tempArtists = artists.slice(0, 10);
-  const spotifyArtists = await searchArtists(tempArtists, accessToken);
+  // const tempArtists = artists.slice(0, 30);
+  process.stdout.write('[');
+  const spotifyArtists = _.uniq(await searchArtists(artists, genres, accessToken));
+  process.stdout.write(']\n');
   console.log('spotifys', spotifyArtists);
-  const tracks = await getTopTracks(spotifyArtists, accessToken);
+  const tracks = _.uniq(await getTopTracks(spotifyArtists, accessToken));
   console.log('tracks', tracks);
   await insertTracksIntoPlaylist(tracks, playlistId, spotifyId, accessToken);
-  console.log('inserted all');
+  console.log('inserted all', playlistId);
 };
 
-const buildPlaylist = async (spotifyId, metroAreaId, accessToken) => {
+const buildPlaylist = async (spotifyId, metroAreaId, genres, accessToken) => {
   const playlistId = await createPlaylist(spotifyId, accessToken);
   const startDate = moment()
     .startOf('week')
@@ -173,7 +183,7 @@ const buildPlaylist = async (spotifyId, metroAreaId, accessToken) => {
     'metroAreaId = ? and date >= ? and date <= ?',
     [metroAreaId, startDate, endDate],
   );
-  await addSongsToPlaylist(playlistId, events, spotifyId, accessToken);
+  await addSongsToPlaylist(playlistId, events, spotifyId, genres, accessToken);
 };
 
 const storeUser = async (user, accessToken, refreshToken) => {
