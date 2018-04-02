@@ -1,6 +1,7 @@
 const querystring = require('querystring');
 const moment = require('moment');
 const throat = require('throat');
+const _ = require('underscore');
 
 const request = require('../utils/request').requestLib;
 const knex = require('knex')(require('../knexfile'));
@@ -40,7 +41,7 @@ const topTracks = async (artistId, accessToken, numTop) => {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  if (body.tracks) {
+  if (body && body.tracks) {
     return body.tracks
       .slice(0, numTop)
       .map(track => ({ uri: track.uri, popularity: track.popularity }));
@@ -58,7 +59,12 @@ const searchArtist = async (query, accessToken) => {
     headers: { Authorization: `Bearer ${accessToken}` },
     json: true,
   });
-  return body && body.artists && body.artists.items[0] && body.artists.items[0].id;
+  process.stdout.write('=');
+  const artist = body && body.artists && body.artists.items[0];
+  if (artist) {
+    return { artistId: artist.id, genres: artist.genres };
+  }
+  return undefined;
 };
 
 const createPlaylist = async (userId, accessToken) => {
@@ -104,82 +110,6 @@ const addTracksToPlaylist = async (tracks, playlistId, userId, accessToken) => {
   return body;
 };
 
-// async function addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
-//   const n = trackURIs.length;
-//   let start = 0;
-//   let end = Math.min(100, n);
-//   while (start < n) {
-//     // eslint-disable-next-line
-//     const [, body] = await request({
-//       method: 'POST',
-//       url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
-//       headers: {
-//         Authorization: `Bearer ${accessToken}`,
-//         'Content-Type': 'application/json',
-//       },
-//       json: true,
-//       form: JSON.stringify({ uris: trackURIs.slice(start, end) }),
-//     });
-//     console.log(body);
-//     start = end;
-//     end = Math.min(end + 100, n);
-//   }
-// }
-
-// async function deleteSongsFromPlaylist(accessToken, userId, playlistId) {
-//   const [, body] = await request({
-//     method: 'PUT',
-//     url: `${BASE_URL}/users/${userId}/playlists/${playlistId}/tracks`,
-//     headers: {
-//       Authorization: `Bearer ${accessToken}`,
-//       'Content-Type': 'application/json',
-//     },
-//     json: true,
-//     form: JSON.stringify({ uris: [] }),
-//   });
-//   console.log(body);
-// }
-
-// async function safeSearchArtist(artist, accessToken) {
-//   try {
-//     return await searchArtist(artist, accessToken);
-//   } catch (err) {
-//     return undefined;
-//   }
-// }
-
-// async function safeGetTopTracks(accessToken, artistId, numTop) {
-//   try {
-//     const topURIs = await getTopTracks(accessToken, artistId, numTop);
-//     return topURIs;
-//   } catch (err) {
-//     console.log(err);
-//     return undefined;
-//   }
-// }
-
-// function safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs) {
-//   try {
-//     addSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
-//   } catch (err) {
-//     console.log(err);
-//   }
-// }
-
-// async function addLocalPlaylist(artists, userId, playlistId, accessToken) {
-//   let tracks = [];
-//   for (const artist of artists) {
-//     const artistId = await safeSearchArtist(artist, accessToken);
-//     console.log('Artist ID:', artistId);
-//     if (artistId !== undefined) {
-//       tracks = tracks.concat(await safeGetTopTracks(accessToken, artistId, 3));
-//     }
-//   }
-//   const sortedTracks = tracks.sort((a, b) => b[1] - a[1]);
-//   const trackURIs = sortedTracks.map(track => track[0]);
-//   safeAddSongURIsToPlaylist(accessToken, userId, playlistId, trackURIs);
-// }
-
 const getArtists = async (events) => {
   const promises = [];
   events.map((e) => {
@@ -195,13 +125,15 @@ const getArtists = async (events) => {
     .filter(artist => artist !== undefined);
 };
 
-const searchArtists = async (artists, accessToken) =>
+const searchArtists = async (artists, genres, accessToken) =>
   (await Promise.all(artists.map(throat(8, artist => searchArtist(artist, accessToken)))))
-    .filter(artist => artist !== undefined);
+    .filter(artist => artist !== undefined && _.intersection(genres, artist.genres).length > 0)
+    .map(artist => artist.artistId);
+
 
 const getTopTracks = async (artists, accessToken) => {
   const trackLists = (await Promise.all(artists
-    .map(throat(8, artist => topTracks(artist, accessToken, 3)))))
+    .map(throat(8, artist => topTracks(artist, accessToken, 2)))))
     .filter(track => track !== undefined);
   return [].concat(...trackLists);
 };
@@ -211,34 +143,35 @@ const insertTracksIntoPlaylist = async (tracks, playlistId, spotifyId, accessTok
   const n = songs.length;
   let start = 0;
   let end = Math.min(100, n);
+  const promises = [];
   while (start < n) {
     const trackURIs = tracks.slice(start, end).map(t => t.uri);
-    addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken);
+    console.log(`batch ${start} - ${end}`, trackURIs);
+    promises.push(addTracksToPlaylist(trackURIs, playlistId, spotifyId, accessToken));
     start = end;
     end = Math.min(end + 100, n);
   }
+  await Promise.all(promises);
 };
 
-const addSongsToPlaylist = async (playlistId, events, spotifyId, accessToken) => {
-  // For all the events, get the artists
-  // Do spotify look up of artists
-  // If artists are in right genre, get top 1-3 trackURIs
-  // Insert tracks to playlist
+const addSongsToPlaylist = async (playlistId, events, spotifyId, genres, accessToken) => {
+  // TODO ADD ALL SPOTIFY ARTISTS TO DATABASE. TRACKS... MAYBE...?
   console.log('get artist');
   const artists = await getArtists(events);
   console.log('done', artists);
-  const tempArtists = artists.slice(0, 10);
-  const spotifyArtists = await searchArtists(tempArtists, accessToken);
+  // const tempArtists = artists.slice(0, 30);
+  process.stdout.write('[');
+  const spotifyArtists = _.uniq(await searchArtists(artists, genres, accessToken));
+  process.stdout.write(']\n');
   console.log('spotifys', spotifyArtists);
-  const tracks = await getTopTracks(spotifyArtists, accessToken);
+  const tracks = _.uniq(await getTopTracks(spotifyArtists, accessToken));
   console.log('tracks', tracks);
   await insertTracksIntoPlaylist(tracks, playlistId, spotifyId, accessToken);
-  console.log('inserted all');
+  console.log('inserted all', playlistId);
 };
 
-const buildPlaylist = async (spotifyId, metroAreaId, accessToken) => {
+const buildPlaylist = async (spotifyId, metroAreaId, genres, accessToken) => {
   const playlistId = await createPlaylist(spotifyId, accessToken);
-  // const playlistId = 'test';
   const startDate = moment()
     .startOf('week')
     .add('2', 'weeks')
@@ -252,7 +185,7 @@ const buildPlaylist = async (spotifyId, metroAreaId, accessToken) => {
     'metroAreaId = ? and date >= ? and date <= ?',
     [metroAreaId, startDate, endDate],
   );
-  await addSongsToPlaylist(playlistId, events, spotifyId, accessToken);
+  await addSongsToPlaylist(playlistId, events, spotifyId, genres, accessToken);
 };
 
 const storeUser = async (user, accessToken, refreshToken) => {
@@ -284,9 +217,6 @@ const storeUser = async (user, accessToken, refreshToken) => {
 module.exports = {
   authenticate,
   checkProfile,
-  getTopTracks,
-  searchArtist,
-  createPlaylist,
   buildPlaylist,
   storeUser,
   CLIENT_ID,
